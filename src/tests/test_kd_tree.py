@@ -1,13 +1,9 @@
 import numpy as np
 import pytest
+import time
+from unittest.mock import patch
 
 from src.algorithms.kd_tree import KDTree
-
-
-def test_build_empty():
-    tree = KDTree()
-    tree.build([])
-    assert tree.root is None
 
 
 def test_build_single_point():
@@ -75,6 +71,12 @@ def test_find_nearest_empty():
         tree.find_nearest_point((1.0, 2.0))
 
 
+def test_build_empty():
+    tree = KDTree()
+    with pytest.raises(ValueError, match="Points list is empty"):
+        tree.build([])
+
+
 def test_find_nearest_exact_match():
     tree = KDTree()
     tree.build([(1.0, 2.0), (3.0, 4.0), (5.0, 6.0)])
@@ -103,11 +105,11 @@ def test_find_nearest_backtracking():
 
 
 def brute_force_nearest(
-    points: np.ndarray, target: np.ndarray, dist: str = "euclidian"
+    points: np.ndarray, target: np.ndarray, dist: str = "euclidean"
 ) -> np.ndarray:
-    if dist == "euclidian":
+    if dist == "euclidean":
         distances = np.sum((points - target) ** 2, axis=1)
-    elif dist == "manhatten":
+    elif dist == "manhattan":
         distances = np.sum(np.abs(points - target), axis=1)
     else:
         raise ValueError(f"Unknown distance metric: {dist}")
@@ -116,7 +118,7 @@ def brute_force_nearest(
 
 
 @pytest.mark.parametrize("k", [2, 3, 5])
-@pytest.mark.parametrize("dist", ["euclidian", "manhatten"])
+@pytest.mark.parametrize("dist", ["euclidean", "manhattan"])
 def test_random_points_brute_force_comparison(k, dist):
     np.random.seed(42 + k)
     num_points = 100
@@ -196,13 +198,6 @@ def test_extreme_coordinates(points, query, expected):
     assert np.allclose(nearest, np.array(expected))
 
 
-def test_recursion_limit_with_large_unbalanced_tree():
-    tree = KDTree(k=2)
-    with pytest.raises(RecursionError):
-        for i in range(1200):
-            tree.insert((float(i), float(i)))
-
-
 def test_nearest_differs_by_metric():
     # Points: P1 = (5.0, 0.0), P2 = (4.0, 2.9)
     # Query: Q = (0.0, 0.0)
@@ -215,14 +210,73 @@ def test_nearest_differs_by_metric():
     points = [(5.0, 0.0), (4.0, 2.9)]
     query = (0.0, 0.0)
 
-    # 1. Euclidean KDTree
-    tree_euclidian = KDTree(k=2, dist="euclidian")
+    tree_euclidian = KDTree(k=2, dist="euclidean")
     tree_euclidian.build(points)
     nearest_euclidian = tree_euclidian.find_nearest_point(query)
     assert np.allclose(nearest_euclidian, np.array([4.0, 2.9]))
 
-    # 2. Manhattan KDTree
-    tree_manhattan = KDTree(k=2, dist="manhatten")
+    tree_manhattan = KDTree(k=2, dist="manhattan")
     tree_manhattan.build(points)
     nearest_manhattan = tree_manhattan.find_nearest_point(query)
     assert np.allclose(nearest_manhattan, np.array([5.0, 0.0]))
+
+
+def test_build_worst_case_o_n_log_n():
+    N1 = 2000
+    N2 = 4000
+
+    pts1 = np.array([(float(i), float(i)) for i in range(N1)])
+    pts2 = np.array([(float(i), float(i)) for i in range(N2)])
+
+    tree1 = KDTree(k=2)
+    tree2 = KDTree(k=2)
+
+    t0 = time.perf_counter()
+    tree1.build(pts1)
+    t1 = time.perf_counter()
+
+    t2 = time.perf_counter()
+    tree2.build(pts2)
+    t3 = time.perf_counter()
+
+    time1 = max(t1 - t0, 1e-5)
+    time2 = max(t3 - t2, 1e-5)
+
+    # We expect time2 / time1 to be strictly less than 4.0 (which would be O(N^2))
+    # It should ideally be around 2.2, but we give it a generous bound of 3.5 to avoid flakiness in CI.
+    assert time2 / time1 < 3.5
+
+
+def test_search_worst_case_o_n_log_n():
+    N1 = 1000
+    N2 = 2000
+
+    # Worst case search can happen with highly overlapping bounds, but we test
+    # the average worst-case with random points where we expect O(log N) per query.
+    np.random.seed(42)
+    pts1 = np.random.rand(N1, 2)
+    pts2 = np.random.rand(N2, 2)
+
+    tree1 = KDTree(k=2)
+    tree1.build(pts1)
+
+    tree2 = KDTree(k=2)
+    tree2.build(pts2)
+
+    queries = np.random.rand(100, 2)
+
+    with patch.object(tree1, "_dist", wraps=tree1._dist) as mock_dist1:
+        for q in queries:
+            tree1.find_nearest_point(q)
+        calls1 = max(mock_dist1.call_count, 1)
+
+    with patch.object(tree2, "_dist", wraps=tree2._dist) as mock_dist2:
+        for q in queries:
+            tree2.find_nearest_point(q)
+        calls2 = mock_dist2.call_count
+
+    # The number of distance calculations for N2 should be roughly:
+    # calls1 * (log(N2) / log(N1)) = calls1 * (11 / 10) = 1.1 * calls1
+    # We assert that the number of distance checks grows sublinearly compared to the tree size.
+    ratio = calls2 / calls1
+    assert ratio < 1.5  # Much smaller than 2.0 (which would mean O(N) search)

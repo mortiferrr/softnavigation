@@ -41,7 +41,8 @@ class KDNode:
 
 
 class KDTree:
-    """A kd-tree for fast spatial search.
+    """
+    A kd-tree for fast spatial search.
 
     Attributes:
         root (KDNode | None): The root node of the tree.
@@ -50,7 +51,6 @@ class KDTree:
 
     def __init__(
         self,
-        root: KDNode | None = None,
         k: int = 2,
         dist: Literal["manhattan", "euclidean"] = "euclidean",
     ) -> None:
@@ -58,45 +58,47 @@ class KDTree:
         Initializes a KDTree.
 
         Args:
-            root (KDNode | None, optional): The root node of the tree. Defaults to None.
             k (int, optional): The number of dimensions. Defaults to 2.
-            dist (Literal["manhattan", "euclidian"], optional): The distance metric to use
+            dist (Literal["manhattan", "euclidean"], optional): The distance metric to use
                 for nearest neighbor search ("manhattan" or "euclidean"). Defaults to "euclidean".
         """
-        self._dist = dist
-        self.root = root
+        self.root = None
+        self._dist = distance_sq if dist == "euclidean" else manhattan
         self.k = k
 
-    def build(self, points: list[tuple[float, ...]]) -> None:
+    def build(self, points: list[tuple[float, ...]] | np.ndarray) -> None:
         """
         Builds the KDTree from a list of points.
 
         Args:
-            points (list[tuple[float, ...]]): A list of points (tuples of coordinates)
+            points (list[tuple[float, ...]] | np.ndarray): A list of points (tuples of coordinates)
                 to construct the tree from.
         """
-        if not points:
-            self.root = None
-        else:
-            points_array = np.asarray(points, dtype=float)
-            self.root = self._build(points_array, depth=0)
+        if len(points) == 0:
+            raise ValueError("Points list is empty")
+        points_array = np.asarray(points, dtype=float)
+        indices = np.arange(len(points_array))
+        self.root = self._build(points_array, indices, 0)
 
-    def _build(self, points: np.ndarray, depth: int) -> KDNode | None:
-        if points.size == 0:
+    def _build(
+        self, points: np.ndarray, indices: np.ndarray, depth: int = 0
+    ) -> KDNode | None:
+        if indices.size == 0:
             return None
 
         axis = depth % self.k
-        sorted_indices = np.argsort(points[:, axis])
-        sorted_points = points[sorted_indices]
+        median_index = len(indices) // 2
 
-        median_index = len(sorted_points) // 2
-        median_point = sorted_points[median_index]
+        partitioned = np.argpartition(points[indices, axis], median_index)
+        sorted_indices = indices[partitioned]
 
-        left_points = sorted_points[:median_index]
-        right_points = sorted_points[median_index + 1 :]
+        median_point = points[sorted_indices[median_index]]
 
-        left_child = self._build(left_points, depth + 1)
-        right_child = self._build(right_points, depth + 1)
+        left_indices = sorted_indices[:median_index]
+        right_indices = sorted_indices[median_index + 1 :]
+
+        left_child = self._build(points, left_indices, depth + 1)
+        right_child = self._build(points, right_indices, depth + 1)
 
         return KDNode(median_point, axis, left_child, right_child)
 
@@ -113,15 +115,25 @@ class KDTree:
 
     def _insert(self, node: KDNode | None, point: np.ndarray, depth: int = 0) -> KDNode:
         if node is None:
-            axis = depth % self.k
-            return KDNode(point, axis)
-        else:
-            axis = node.axis
-            if point[axis] < node.point[axis]:
-                node.left = self._insert(node.left, point, depth + 1)
+            return KDNode(point, depth % self.k)
+
+        next_node = node
+
+        while True:
+            axis = next_node.axis
+            if point[axis] < next_node.point[axis]:
+                if next_node.left is None:
+                    next_node.left = KDNode(point, depth % self.k)
+                    break
+                next_node = next_node.left
             else:
-                node.right = self._insert(node.right, point, depth + 1)
-            return node
+                if next_node.right is None:
+                    next_node.right = KDNode(point, depth % self.k)
+                    break
+                next_node = next_node.right
+            depth += 1
+
+        return node
 
     def find_nearest_point(self, point: tuple[float, ...] | np.ndarray) -> np.ndarray:
         """
@@ -156,20 +168,17 @@ class KDTree:
             next_node, other_node = node.right, node.left
 
         best_node = node
-        if self._dist == "euclidean":
-            best_dist = distance_sq(node.point, point)
-        else:
-            best_dist = manhattan(node.point, point)
+        best_dist = float("inf")
 
         if next_node is not None:
-            candidate_node, candidate_dist = self._find_nearest_node(next_node, point)
-            if candidate_dist < best_dist:
-                best_node, best_dist = candidate_node, candidate_dist
+            best_node, best_dist = self._find_nearest_node(next_node, point)
 
-        if self._dist == "euclidean":
-            plane_dist = (point[axis] - node.point[axis]) ** 2
-        else:
-            plane_dist = np.abs(point[axis] - node.point[axis])
+        dist_to_node = self._dist(node.point, point)
+        if dist_to_node < best_dist:
+            best_node = node
+            best_dist = dist_to_node
+
+        plane_dist = self._dist(point[axis], node.point[axis])
 
         if other_node is not None and plane_dist < best_dist:
             candidate_node, candidate_dist = self._find_nearest_node(other_node, point)

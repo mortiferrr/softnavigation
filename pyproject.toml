@@ -1,12 +1,56 @@
 [project]
 name = "softnavigate"
 version = "0.1.0"
-description = "Implementation of Various Path-Finding Algorithms for Flexible Robots"
+description = "Implementation of Various Path-Finding Algorithms for Flexible Robots 🤖"
 requires-python = ">=3.12"
+authors = [
+    { name = "Artemy Polyakov", email = "artempolyakov159@gmail.com" },
+]
 dependencies = [
     "gymnasium>=0.28.1",
     "numpy>=1.26.4",
     "pogema>=1.4.0",
     "pygame>=2.6.1",
-    "pytest>=9.1.1",
 ]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.6.0",
+    "pytest>=9.1.1",
+    "ruff>=0.15.21",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+extend-exclude = ["tests"]
+
+[tool.ruff.format]
+docstring-code-format = true
+docstring-code-line-length = 88
+indent-style = "space"
+quote-style = "double"
+
+[tool.ruff.lint]
+select = [
+    "F",    # Pyflakes
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "I",    # isort
+    "N",    # pep8-naming
+    "A",    # flake8-builtins
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "ICN",  # flake8-import-conventions
+    "TID",  # flake8-tidy-imports
+    "ISC",  # flake8-implicit-str-concat
+    "PTH",  # flake8-use-pathlib
+    "SIM",  # flake8-simplify
+    "C90",  # mccabe
+    "NPY",  # NumPy-specific rules
+    "D101", "D102", "D103", "D107", # docstrings
+    "F841",  # unused local variable
+    "ARG002" # unused method argument
+]
+ignore = ["E501"]
+task-tags = ["TODO", "FIXME", "HACK", "NOTE"]

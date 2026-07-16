@@ -60,9 +60,9 @@ def test_insert_existing_tree():
     tree.insert((3.0, 8.0))  # left of root, axis 1
     tree.insert((7.0, 2.0))  # right of root, axis 1
 
-    assert np.allclose(tree.root.point, np.array([5.0, 5.0]))
-    assert np.allclose(tree.root.left.point, np.array([3.0, 8.0]))
-    assert np.allclose(tree.root.right.point, np.array([7.0, 2.0]))
+    assert np.allclose(tree.root.point, np.array([5.0, 5.0]))        # type: ignore
+    assert np.allclose(tree.root.left.point, np.array([3.0, 8.0]))   # type: ignore
+    assert np.allclose(tree.root.right.point, np.array([7.0, 2.0]))  # type: ignore
 
 
 def test_find_nearest_empty():
@@ -120,7 +120,7 @@ def brute_force_nearest(
 @pytest.mark.parametrize("k", [2, 3, 5])
 @pytest.mark.parametrize("dist", ["euclidean", "manhattan"])
 def test_random_points_brute_force_comparison(k, dist):
-    np.random.seed(42 + k)
+    np.random.seed()
     num_points = 100
     num_queries = 20
 
@@ -199,14 +199,6 @@ def test_extreme_coordinates(points, query, expected):
 
 
 def test_nearest_differs_by_metric():
-    # Points: P1 = (5.0, 0.0), P2 = (4.0, 2.9)
-    # Query: Q = (0.0, 0.0)
-    # Under Euclidean distance:
-    # d_sq(Q, P1) = 25.0
-    # d_sq(Q, P2) = 16.0 + 8.41 = 24.41 -> P2 is closer.
-    # Under Manhattan distance:
-    # d_man(Q, P1) = 5.0
-    # d_man(Q, P2) = 4.0 + 2.9 = 6.9 -> P1 is closer.
     points = [(5.0, 0.0), (4.0, 2.9)]
     query = (0.0, 0.0)
 
@@ -253,7 +245,7 @@ def test_search_worst_case_o_n_log_n():
 
     # Worst case search can happen with highly overlapping bounds, but we test
     # the average worst-case with random points where we expect O(log N) per query.
-    np.random.seed(42)
+    np.random.seed()
     pts1 = np.random.rand(N1, 2)
     pts2 = np.random.rand(N2, 2)
 
@@ -275,8 +267,5 @@ def test_search_worst_case_o_n_log_n():
             tree2.find_nearest_point(q)
         calls2 = mock_dist2.call_count
 
-    # The number of distance calculations for N2 should be roughly:
-    # calls1 * (log(N2) / log(N1)) = calls1 * (11 / 10) = 1.1 * calls1
-    # We assert that the number of distance checks grows sublinearly compared to the tree size.
     ratio = calls2 / calls1
-    assert ratio < 1.5  # Much smaller than 2.0 (which would mean O(N) search)
+    assert ratio < 1.5

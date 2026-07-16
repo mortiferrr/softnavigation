@@ -15,7 +15,7 @@ def distance_sq(p1: np.ndarray, p2: np.ndarray) -> float:
     return float(np.sum((p1 - p2) ** 2))
 
 
-def euclidian(p1: np.ndarray, p2: np.ndarray) -> float:
+def euclidean(p1: np.ndarray, p2: np.ndarray) -> float:
     """
     Calculate the Euclidean distance between two points.
 
@@ -29,7 +29,7 @@ def euclidian(p1: np.ndarray, p2: np.ndarray) -> float:
     return float(np.linalg.norm(p1 - p2))
 
 
-def manhetten(p1: np.ndarray, p2: np.ndarray) -> float:
+def manhattan(p1: np.ndarray, p2: np.ndarray) -> float:
     """
     Calculate the Manhattan distance between two points.
 

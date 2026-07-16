@@ -4,7 +4,7 @@ from typing import Literal
 
 import numpy as np
 
-from src.utils import distance_sq, manhetten
+from src.utils import distance_sq, manhattan
 
 
 class KDNode:
@@ -52,7 +52,7 @@ class KDTree:
         self,
         root: KDNode | None = None,
         k: int = 2,
-        dist: Literal["manhatten", "euclidian"] = "euclidian",
+        dist: Literal["manhattan", "euclidean"] = "euclidean",
     ) -> None:
         """
         Initializes a KDTree.
@@ -60,8 +60,8 @@ class KDTree:
         Args:
             root (KDNode | None, optional): The root node of the tree. Defaults to None.
             k (int, optional): The number of dimensions. Defaults to 2.
-            dist (Literal["manhatten", "euclidian"], optional): The distance metric to use
-                for nearest neighbor search ("manhatten" or "euclidian"). Defaults to "euclidian".
+            dist (Literal["manhattan", "euclidian"], optional): The distance metric to use
+                for nearest neighbor search ("manhattan" or "euclidean"). Defaults to "euclidean".
         """
         self._dist = dist
         self.root = root
@@ -156,17 +156,17 @@ class KDTree:
             next_node, other_node = node.right, node.left
 
         best_node = node
-        if self._dist == "euclidian":
+        if self._dist == "euclidean":
             best_dist = distance_sq(node.point, point)
         else:
-            best_dist = manhetten(node.point, point)
+            best_dist = manhattan(node.point, point)
 
         if next_node is not None:
             candidate_node, candidate_dist = self._find_nearest_node(next_node, point)
             if candidate_dist < best_dist:
                 best_node, best_dist = candidate_node, candidate_dist
 
-        if self._dist == "euclidian":
+        if self._dist == "euclidean":
             plane_dist = (point[axis] - node.point[axis]) ** 2
         else:
             plane_dist = np.abs(point[axis] - node.point[axis])

@@ -1,7 +1,6 @@
-import pytest
 import numpy as np
+import pytest
 
-# pyrefly: ignore [missing-import]
 from src.algorithms.kd_tree import KDTree
 
 
@@ -103,20 +102,28 @@ def test_find_nearest_backtracking():
     assert np.allclose(nearest, np.array([6.1, 7.0]))
 
 
-def brute_force_nearest(points: np.ndarray, target: np.ndarray) -> np.ndarray:
-    distances = np.sum((points - target) ** 2, axis=1)
+def brute_force_nearest(
+    points: np.ndarray, target: np.ndarray, dist: str = "euclidian"
+) -> np.ndarray:
+    if dist == "euclidian":
+        distances = np.sum((points - target) ** 2, axis=1)
+    elif dist == "manhatten":
+        distances = np.sum(np.abs(points - target), axis=1)
+    else:
+        raise ValueError(f"Unknown distance metric: {dist}")
     best_idx = np.argmin(distances)
     return points[best_idx]
 
 
 @pytest.mark.parametrize("k", [2, 3, 5])
-def test_random_points_brute_force_comparison(k):
+@pytest.mark.parametrize("dist", ["euclidian", "manhatten"])
+def test_random_points_brute_force_comparison(k, dist):
     np.random.seed(42 + k)
     num_points = 100
     num_queries = 20
 
     points = np.random.rand(num_points, k) * 100.0
-    tree = KDTree(k=k)
+    tree = KDTree(k=k, dist=dist)
     points_list = [tuple(p) for p in points]
     tree.build(points_list)
 
@@ -124,7 +131,7 @@ def test_random_points_brute_force_comparison(k):
 
     for query in queries:
         tree_nearest = tree.find_nearest_point(tuple(query))
-        brute_nearest = brute_force_nearest(points, query)
+        brute_nearest = brute_force_nearest(points, query, dist=dist)
         assert np.allclose(tree_nearest, brute_nearest)
 
 
@@ -194,3 +201,28 @@ def test_recursion_limit_with_large_unbalanced_tree():
     with pytest.raises(RecursionError):
         for i in range(1200):
             tree.insert((float(i), float(i)))
+
+
+def test_nearest_differs_by_metric():
+    # Points: P1 = (5.0, 0.0), P2 = (4.0, 2.9)
+    # Query: Q = (0.0, 0.0)
+    # Under Euclidean distance:
+    # d_sq(Q, P1) = 25.0
+    # d_sq(Q, P2) = 16.0 + 8.41 = 24.41 -> P2 is closer.
+    # Under Manhattan distance:
+    # d_man(Q, P1) = 5.0
+    # d_man(Q, P2) = 4.0 + 2.9 = 6.9 -> P1 is closer.
+    points = [(5.0, 0.0), (4.0, 2.9)]
+    query = (0.0, 0.0)
+
+    # 1. Euclidean KDTree
+    tree_euclidian = KDTree(k=2, dist="euclidian")
+    tree_euclidian.build(points)
+    nearest_euclidian = tree_euclidian.find_nearest_point(query)
+    assert np.allclose(nearest_euclidian, np.array([4.0, 2.9]))
+
+    # 2. Manhattan KDTree
+    tree_manhattan = KDTree(k=2, dist="manhatten")
+    tree_manhattan.build(points)
+    nearest_manhattan = tree_manhattan.find_nearest_point(query)
+    assert np.allclose(nearest_manhattan, np.array([5.0, 0.0]))

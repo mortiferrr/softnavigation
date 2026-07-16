@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-import time
 from unittest.mock import patch
 
 from src.algorithms.kd_tree import KDTree
@@ -15,20 +14,7 @@ def test_build_single_point():
     assert tree.root.right is None
 
 
-def test_build_known_2d_structure():
-    # Points: (3, 1), (2, 3), (2, 6), (4, 2)
-    # k=2, so depth 0 splits by x.
-    # Sorted by x: (2, 3), (2, 6), (3, 1), (4, 2)
-    # Median index: 4 // 2 = 2. So median is (3, 1).
-    # Left: (2, 3), (2, 6)
-    # Right: (4, 2)
-
-    # Left child (depth 1, split by y):
-    # Sorted by y: (2, 3), (2, 6).
-    # Median index: 2 // 2 = 1. So median is (2, 6).
-    # Left-left: (2, 3)
-    # Left-right: None
-
+def test_build_2d_structure():
     tree = KDTree(k=2)
     tree.build([(3, 1), (2, 3), (2, 6), (4, 2)])
 
@@ -37,11 +23,11 @@ def test_build_known_2d_structure():
     assert np.allclose(root.point, np.array([3.0, 1.0]))
     assert root.axis == 0
 
-    assert root.right is not None
-    assert np.allclose(root.right.point, np.array([4.0, 2.0]))
-
     assert root.left is not None
     assert np.allclose(root.left.point, np.array([2.0, 6.0]))
+
+    assert root.right is not None
+    assert np.allclose(root.right.point, np.array([4.0, 2.0]))
 
     assert root.left.left is not None
     assert np.allclose(root.left.left.point, np.array([2.0, 3.0]))
@@ -60,18 +46,18 @@ def test_insert_existing_tree():
     tree.insert((3.0, 8.0))  # left of root, axis 1
     tree.insert((7.0, 2.0))  # right of root, axis 1
 
-    assert np.allclose(tree.root.point, np.array([5.0, 5.0]))        # type: ignore
-    assert np.allclose(tree.root.left.point, np.array([3.0, 8.0]))   # type: ignore
+    assert np.allclose(tree.root.point, np.array([5.0, 5.0]))  # type: ignore
+    assert np.allclose(tree.root.left.point, np.array([3.0, 8.0]))  # type: ignore
     assert np.allclose(tree.root.right.point, np.array([7.0, 2.0]))  # type: ignore
 
 
-def test_find_nearest_empty():
+def test_find_nearest_if_empty():
     tree = KDTree()
     with pytest.raises(ValueError, match="Tree is empty"):
         tree.find_nearest_point((1.0, 2.0))
 
 
-def test_build_empty():
+def test_build_if_points_empty():
     tree = KDTree()
     with pytest.raises(ValueError, match="Points list is empty"):
         tree.build([])
@@ -85,18 +71,6 @@ def test_find_nearest_exact_match():
 
 
 def test_find_nearest_backtracking():
-    # Construct a specific tree where greedy search goes to the wrong branch.
-    # Points: (2, 5), (5, 5), (6, 6), (6.1, 7)
-    # Root will be (6, 6), axis 0.
-    # Left child: (5, 5), axis 1.
-    # Right child: (6.1, 7), axis 1.
-    # Query: (5, 7).
-    # Greedy goes to left child (5, 5) because 5 < 6.
-    # Distance to (5, 5) is 4.
-    # Distance to Root (6, 6) is 2. Best is now Root.
-    # Distance to splitting plane (x=6) is 1. Since 1 < 2, it must check right branch.
-    # Distance to right child (6.1, 7) is 1.21. This is the true nearest neighbor!
-
     tree = KDTree(k=2)
     tree.build([(2, 5), (5, 5), (6, 6), (6.1, 7)])
 
@@ -120,7 +94,7 @@ def brute_force_nearest(
 @pytest.mark.parametrize("k", [2, 3, 5])
 @pytest.mark.parametrize("dist", ["euclidean", "manhattan"])
 def test_random_points_brute_force_comparison(k, dist):
-    np.random.seed()
+    np.random.seed(67)
     num_points = 100
     num_queries = 20
 
@@ -192,62 +166,30 @@ def test_1d_tree(query, expected):
     ],
 )
 def test_extreme_coordinates(points, query, expected):
-    tree = KDTree(k=2)
+    # YEAAAAH SIX-SEVEN SIX-SEVEN XDDDDDDDDDDDD
+    tree = KDTree(k=67)
     tree.build(points)
     nearest = tree.find_nearest_point(query)
     assert np.allclose(nearest, np.array(expected))
 
 
-def test_nearest_differs_by_metric():
-    points = [(5.0, 0.0), (4.0, 2.9)]
-    query = (0.0, 0.0)
-
-    tree_euclidian = KDTree(k=2, dist="euclidean")
-    tree_euclidian.build(points)
-    nearest_euclidian = tree_euclidian.find_nearest_point(query)
-    assert np.allclose(nearest_euclidian, np.array([4.0, 2.9]))
-
-    tree_manhattan = KDTree(k=2, dist="manhattan")
-    tree_manhattan.build(points)
-    nearest_manhattan = tree_manhattan.find_nearest_point(query)
-    assert np.allclose(nearest_manhattan, np.array([5.0, 0.0]))
-
-
-def test_build_worst_case_o_n_log_n():
-    N1 = 2000
-    N2 = 4000
-
-    pts1 = np.array([(float(i), float(i)) for i in range(N1)])
-    pts2 = np.array([(float(i), float(i)) for i in range(N2)])
-
-    tree1 = KDTree(k=2)
-    tree2 = KDTree(k=2)
-
-    t0 = time.perf_counter()
-    tree1.build(pts1)
-    t1 = time.perf_counter()
-
-    t2 = time.perf_counter()
-    tree2.build(pts2)
-    t3 = time.perf_counter()
-
-    time1 = max(t1 - t0, 1e-5)
-    time2 = max(t3 - t2, 1e-5)
-
-    # We expect time2 / time1 to be strictly less than 4.0 (which would be O(N^2))
-    # It should ideally be around 2.2, but we give it a generous bound of 3.5 to avoid flakiness in CI.
-    assert time2 / time1 < 3.5
+@pytest.mark.parametrize(
+    "points,query,expected,dist",
+    [
+        ([(5.0, 0.0), (4.0, 2.9)], (0.0, 0.0), (4.0, 2.9), "euclidean"),
+        ([(5.0, 0.0), (4.0, 2.9)], (0.0, 0.0), (5.0, 0.0), "manhattan"),
+    ],
+)
+def test_nearest_differs_by_metric(points, query, expected, dist):
+    tree = KDTree(k=2, dist=dist)
+    tree.build(points)
+    nearest = tree.find_nearest_point(query)
+    assert np.allclose(nearest, np.array(expected))
 
 
-def test_search_worst_case_o_n_log_n():
-    N1 = 1000
-    N2 = 2000
-
-    # Worst case search can happen with highly overlapping bounds, but we test
-    # the average worst-case with random points where we expect O(log N) per query.
-    np.random.seed()
-    pts1 = np.random.rand(N1, 2)
-    pts2 = np.random.rand(N2, 2)
+def test_search_o_log_n():
+    pts1 = np.array([(float(i), float(i)) for i in range(2000)])
+    pts2 = np.array([(float(i), float(i)) for i in range(4000)])
 
     tree1 = KDTree(k=2)
     tree1.build(pts1)

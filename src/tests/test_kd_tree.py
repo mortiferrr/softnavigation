@@ -166,8 +166,7 @@ def test_1d_tree(query, expected):
     ],
 )
 def test_extreme_coordinates(points, query, expected):
-    # YEAAAAH SIX-SEVEN SIX-SEVEN XDDDDDDDDDDDD
-    tree = KDTree(k=67)
+    tree = KDTree(k=2)
     tree.build(points)
     nearest = tree.find_nearest_point(query)
     assert np.allclose(nearest, np.array(expected))

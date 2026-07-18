@@ -32,6 +32,7 @@ class KDNode:
         self.right = right
 
 
+# TODO: Add to rebalance of kd-tree
 class KDTree:
     """
     A kd-tree for fast spatial search.
@@ -59,7 +60,9 @@ class KDTree:
         indices = np.arange(len(points_array))
         self.root = self._build(points_array, indices, 0)
 
-    def _build(self, points: np.ndarray, indices: np.ndarray, depth: int = 0) -> KDNode | None:
+    def _build(
+        self, points: np.ndarray, indices: np.ndarray, depth: int = 0
+    ) -> KDNode | None:
         if indices.size == 0:
             return None
 
@@ -95,12 +98,12 @@ class KDTree:
             axis = next_node.axis
             if point[axis] < next_node.point[axis]:
                 if next_node.left is None:
-                    next_node.left = KDNode(point, (depth+1) % self.k)
+                    next_node.left = KDNode(point, (depth + 1) % self.k)
                     break
                 next_node = next_node.left
             else:
                 if next_node.right is None:
-                    next_node.right = KDNode(point, (depth+1) % self.k)
+                    next_node.right = KDNode(point, (depth + 1) % self.k)
                     break
                 next_node = next_node.right
             depth += 1
@@ -117,7 +120,9 @@ class KDTree:
 
         return best_node.point
 
-    def _find_nearest_node(self, node: KDNode, point: np.ndarray) -> tuple[KDNode, float]:
+    def _find_nearest_node(
+        self, node: KDNode, point: np.ndarray
+    ) -> tuple[KDNode, float]:
         axis = node.axis
 
         if point[axis] < node.point[axis]:

@@ -8,8 +8,10 @@ from src.exceptions import ObstacleCollisionError, TargetNotReachedError
 
 class Node:
     """The node of RRT"""
-    def __init__(self, point: np.ndarray | tuple[float, ...],
-                 path_to_node: list[tuple[int, ...]]) -> None:
+
+    def __init__(
+        self, point: np.ndarray | tuple[float, ...], path_to_node: list[tuple[int, ...]]
+    ) -> None:
         """
         Args:
             point (np.ndarray | tuple[float, ...]): Node coordinates in space
@@ -30,6 +32,7 @@ class DiscreteRRTAgent:
     the RRT algorithm in a discrete space (on a grid)
     NOTE: The optimal path is not guaranteed
     """
+
     def __init__(
         self,
         k: int = 2,
@@ -47,9 +50,9 @@ class DiscreteRRTAgent:
 
     # FIXME (mortiferrr): Too many allocations associated with the conversion to a tuple
     # mortifer (from Latin) - the bringer of death to RAM. It is my Alter Ego
-    def _create_new_node(self, obstacles: np.ndarray,
-                         random_point: np.ndarray,
-                         nearest_node: Node) -> Node:
+    def _create_new_node(
+        self, obstacles: np.ndarray, random_point: np.ndarray, nearest_node: Node
+    ) -> Node:
         # TODO (mortiferrr): This solution allows movement only along the axes,
         # because `np.argmax` finds and returns only the first max element
         diff = random_point - nearest_node.point
@@ -73,12 +76,19 @@ class DiscreteRRTAgent:
 
     # FIXME (mortiferrr): Too many allocations associated with the conversion to a tuple
     # mortifer (from Latin) - the bringer of death to RAM. It is my Alter Ego
-    def _build(self, obstacles: np.ndarray,
-               current: np.ndarray,
-               target: np.ndarray,
-               max_steps: int):
-        assert self._nodes, "The root node must be initialized in `self._nodes` before building"
-        assert tuple(current) in self._nodes, "The root node must be initialized in `self._nodes` before building"
+    def _build(
+        self,
+        obstacles: np.ndarray,
+        current: np.ndarray,
+        target: np.ndarray,
+        max_steps: int,
+    ):
+        assert self._nodes, (
+            "The root node must be initialized in `self._nodes` before building"
+        )
+        assert tuple(current) in self._nodes, (
+            "The root node must be initialized in `self._nodes` before building"
+        )
 
         curr_node = self._nodes[tuple(current)]
         curr_step = 0
@@ -111,10 +121,13 @@ class DiscreteRRTAgent:
         if not np.allclose(curr_node.point, target) and len(self._nodes):
             raise TargetNotReachedError("The target was not reached")
 
-    def act(self, obstacles: np.ndarray,
-            target: np.ndarray,
-            current: np.ndarray,
-            max_steps: int = 1000) -> list:
+    def act(
+        self,
+        obstacles: np.ndarray,
+        target: np.ndarray,
+        current: np.ndarray,
+        max_steps: int = 1000,
+    ) -> list:
         """
         Generates a sequence of actions for the agent
         Args:
@@ -139,7 +152,8 @@ class DiscreteRRTAgent:
         self._kd_tree.insert(root.point)
 
         self._build(obstacles, current, target, max_steps)
-        assert self._nodes, "After the tree is built, the `self._nodes` must be not empty"
+        assert self._nodes, (
+            "After the tree is built, the `self._nodes` must be not empty"
+        )
 
         return self._nodes[tuple(target)].path_to_node
-

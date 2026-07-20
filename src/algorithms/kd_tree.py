@@ -18,18 +18,22 @@ class KDNode:
         right (KDNode | None): The right child node.
     """
 
+    __slots__ = ("point", "axis", "left", "right", "node_id")
+
     def __init__(
         self,
         point: np.ndarray,
         axis: int,
         left: KDNode | None = None,
         right: KDNode | None = None,
+        node_id: int | None = None,
     ) -> None:
         """Initializes a KDNode with a point, axis, and optional children."""
         self.point = point
         self.axis = axis
         self.left = left
         self.right = right
+        self.node_id = node_id
 
 
 # TODO: Add to rebalance of kd-tree
@@ -49,8 +53,9 @@ class KDTree:
     ) -> None:
         """Initializes a KDTree."""
         self.root = None
-        self._dist = distance_sq if dist == "euclidean" else manhattan
         self.k = k
+        self._dist = distance_sq if dist == "euclidean" else manhattan
+        self._max_node_id = 0
 
     def build(self, points: list[tuple[float, ...]] | np.ndarray) -> None:
         """Builds the KDTree from a list of points."""
@@ -73,6 +78,7 @@ class KDTree:
         sorted_indices = indices[partitioned]
 
         median_point = points[sorted_indices[median_index]]
+        self._max_node_id = sorted_indices[median_index]
 
         left_indices = sorted_indices[:median_index]
         right_indices = sorted_indices[median_index + 1 :]
@@ -80,16 +86,30 @@ class KDTree:
         left_child = self._build(points, left_indices, depth + 1)
         right_child = self._build(points, right_indices, depth + 1)
 
-        return KDNode(median_point, axis, left_child, right_child)
+        return KDNode(
+            median_point, axis, left_child, right_child, sorted_indices[median_index]
+        )
 
-    def insert(self, point: tuple[float, ...] | np.ndarray) -> None:
+    def insert(
+        self, point: tuple[float, ...] | np.ndarray, node_id: int | None = None
+    ) -> None:
         """Inserts a new point into the KDTree."""
         point_array = np.asarray(point, dtype=float)
-        self.root = self._insert(node=self.root, point=point_array)
+        if not node_id:
+            node_id = self._max_node_id
+            self._max_node_id += 1
 
-    def _insert(self, node: KDNode | None, point: np.ndarray, depth: int = 0) -> KDNode:
+        self.root = self._insert(node=self.root, point=point_array, node_id=node_id)
+
+    def _insert(
+        self,
+        node: KDNode | None,
+        point: np.ndarray,
+        depth: int = 0,
+        node_id: int | None = None,
+    ) -> KDNode:
         if node is None:
-            return KDNode(point, depth % self.k)
+            return KDNode(point, depth % self.k, node_id=node_id)
 
         next_node = node
 
@@ -98,12 +118,16 @@ class KDTree:
             axis = next_node.axis
             if point[axis] < next_node.point[axis]:
                 if next_node.left is None:
-                    next_node.left = KDNode(point, (depth + 1) % self.k)
+                    next_node.left = KDNode(
+                        point, (depth + 1) % self.k, node_id=node_id
+                    )
                     break
                 next_node = next_node.left
             else:
                 if next_node.right is None:
-                    next_node.right = KDNode(point, (depth + 1) % self.k)
+                    next_node.right = KDNode(
+                        point, (depth + 1) % self.k, node_id=node_id
+                    )
                     break
                 next_node = next_node.right
             depth += 1

@@ -1,3 +1,4 @@
+from typing import cast
 import numpy as np
 import pytest
 from unittest.mock import patch
@@ -5,11 +6,14 @@ from unittest.mock import patch
 from src.algorithms.kd_tree import KDTree
 
 
+rng = np.random.default_rng(seed=67)
+
+
 def test_build_single_point():
     tree = KDTree()
     tree.build([(1.0, 2.0)])
     assert tree.root is not None
-    assert np.allclose(tree.root.point, np.array([1.0, 2.0]))
+    assert np.allclose(tree.root.point, [1.0, 2.0])
     assert tree.root.left is None
     assert tree.root.right is None
 
@@ -20,24 +24,24 @@ def test_build_2d_structure():
 
     root = tree.root
     assert root is not None
-    assert np.allclose(root.point, np.array([3.0, 1.0]))
+    assert np.allclose(root.point, [3.0, 1.0])
     assert root.axis == 0
 
     assert root.left is not None
-    assert np.allclose(root.left.point, np.array([2.0, 6.0]))
+    assert np.allclose(root.left.point, [2.0, 6.0])
 
     assert root.right is not None
-    assert np.allclose(root.right.point, np.array([4.0, 2.0]))
+    assert np.allclose(root.right.point, [4.0, 2.0])
 
     assert root.left.left is not None
-    assert np.allclose(root.left.left.point, np.array([2.0, 3.0]))
+    assert np.allclose(root.left.left.point, [2.0, 3.0])
 
 
 def test_insert_into_empty():
     tree = KDTree()
     tree.insert((5.0, 5.0))
     assert tree.root is not None
-    assert np.allclose(tree.root.point, np.array([5.0, 5.0]))
+    assert np.allclose(tree.root.point, [5.0, 5.0])
 
 
 def test_insert_existing_tree():
@@ -46,9 +50,9 @@ def test_insert_existing_tree():
     tree.insert((3.0, 8.0))  # left of root, axis 1
     tree.insert((7.0, 2.0))  # right of root, axis 1
 
-    assert np.allclose(tree.root.point, np.array([5.0, 5.0]))  # type: ignore
-    assert np.allclose(tree.root.left.point, np.array([3.0, 8.0]))  # type: ignore
-    assert np.allclose(tree.root.right.point, np.array([7.0, 2.0]))  # type: ignore
+    assert np.allclose(tree.root.point, [5.0, 5.0])  # type: ignore
+    assert np.allclose(tree.root.left.point, [3.0, 8.0])  # type: ignore
+    assert np.allclose(tree.root.right.point, [7.0, 2.0])  # type: ignore
 
 
 def test_find_nearest_if_empty():
@@ -63,11 +67,17 @@ def test_build_if_points_empty():
         tree.build([])
 
 
+def test_build_if_points_and_ids_len_not_be_same():
+    tree = KDTree()
+    with pytest.raises(ValueError, match="Lengths of `ids` and `points` must be same"):
+        tree.build([(1.0, 2.0), (3.0, 4.0), (5.0, 6.0)], [1, 2])
+
+
 def test_find_nearest_exact_match():
     tree = KDTree()
     tree.build([(1.0, 2.0), (3.0, 4.0), (5.0, 6.0)])
     nearest = tree.find_nearest_point((3.0, 4.0))
-    assert np.allclose(nearest, np.array([3.0, 4.0]))
+    assert np.allclose(nearest, [3.0, 4.0])
 
 
 def test_find_nearest_backtracking():
@@ -75,7 +85,7 @@ def test_find_nearest_backtracking():
     tree.build([(2, 5), (5, 5), (6, 6), (6.1, 7)])
 
     nearest = tree.find_nearest_point((5, 7))
-    assert np.allclose(nearest, np.array([6.1, 7.0]))
+    assert np.allclose(nearest, [6.1, 7.0])
 
 
 def brute_force_nearest(
@@ -94,16 +104,12 @@ def brute_force_nearest(
 @pytest.mark.parametrize("k", [2, 3, 5])
 @pytest.mark.parametrize("dist", ["euclidean", "manhattan"])
 def test_random_points_brute_force_comparison(k, dist):
-    np.random.seed(67)
-    num_points = 100
-    num_queries = 20
+    points = rng.random(size=(100, k)) * 100.0
+    queries = rng.random(size=(20, k)) * 100.0
 
-    points = np.random.rand(num_points, k) * 100.0
     tree = KDTree(k=k, dist=dist)
     points_list = [tuple(p) for p in points]
     tree.build(points_list)
-
-    queries = np.random.rand(num_queries, k) * 100.0
 
     for query in queries:
         tree_nearest = tree.find_nearest_point(tuple(query))
@@ -120,7 +126,7 @@ def test_nearest_on_inserted_tree():
 
     # Search should work correctly even on an unbalanced structure
     nearest = tree.find_nearest_point((2.1, 2.1))
-    assert np.allclose(nearest, np.array([2.0, 2.0]))
+    assert np.allclose(nearest, [2.0, 2.0])
 
 
 def test_duplicate_points():
@@ -128,7 +134,7 @@ def test_duplicate_points():
     tree_build = KDTree(k=2)
     tree_build.build([(1.0, 1.0), (1.0, 1.0), (3.0, 3.0)])
     nearest = tree_build.find_nearest_point((1.1, 1.1))
-    assert np.allclose(nearest, np.array([1.0, 1.0]))
+    assert np.allclose(nearest, [1.0, 1.0])
 
     # Duplicates during insertion
     tree_insert = KDTree(k=2)
@@ -136,7 +142,7 @@ def test_duplicate_points():
     tree_insert.insert((1.0, 1.0))
     tree_insert.insert((3.0, 3.0))
     nearest_insert = tree_insert.find_nearest_point((1.1, 1.1))
-    assert np.allclose(nearest_insert, np.array([1.0, 1.0]))
+    assert np.allclose(nearest_insert, [1.0, 1.0])
 
 
 @pytest.mark.parametrize(
@@ -151,7 +157,7 @@ def test_1d_tree(query, expected):
     tree.build([(5.0,), (3.0,), (8.0,), (1.0,), (4.0,)])
 
     nearest = tree.find_nearest_point((query,))
-    assert np.allclose(nearest, np.array([expected]))
+    assert np.allclose(nearest, expected)
 
 
 @pytest.mark.parametrize(
@@ -169,7 +175,7 @@ def test_extreme_coordinates(points, query, expected):
     tree = KDTree(k=2)
     tree.build(points)
     nearest = tree.find_nearest_point(query)
-    assert np.allclose(nearest, np.array(expected))
+    assert np.allclose(nearest, expected)
 
 
 @pytest.mark.parametrize(
@@ -183,12 +189,12 @@ def test_nearest_differs_by_metric(points, query, expected, dist):
     tree = KDTree(k=2, dist=dist)
     tree.build(points)
     nearest = tree.find_nearest_point(query)
-    assert np.allclose(nearest, np.array(expected))
+    assert np.allclose(nearest, expected)
 
 
 def test_search_o_log_n():
-    pts1 = np.array([(float(i), float(i)) for i in range(2000)])
-    pts2 = np.array([(float(i), float(i)) for i in range(4000)])
+    pts1 = [(float(i), float(i)) for i in range(2000)]
+    pts2 = [(float(i), float(i)) for i in range(4000)]
 
     tree1 = KDTree(k=2)
     tree1.build(pts1)
@@ -196,17 +202,31 @@ def test_search_o_log_n():
     tree2 = KDTree(k=2)
     tree2.build(pts2)
 
-    queries = np.random.rand(100, 2)
+    queries = rng.random(size=(100, 2))
 
     with patch.object(tree1, "_dist", wraps=tree1._dist) as mock_dist1:
         for q in queries:
-            tree1.find_nearest_point(q)
+            tree1.find_nearest_point(tuple(q.tolist()))
         calls1 = max(mock_dist1.call_count, 1)
 
     with patch.object(tree2, "_dist", wraps=tree2._dist) as mock_dist2:
         for q in queries:
-            tree2.find_nearest_point(q)
+            tree2.find_nearest_point(tuple(q.tolist()))
         calls2 = mock_dist2.call_count
 
     ratio = calls2 / calls1
     assert ratio < 1.5
+
+
+@pytest.mark.parametrize("k", [2, 3, 5])
+def test_build_tree_with_ids(k):
+    ids = rng.integers(low=1000, size=(100,)).tolist()
+    points = rng.random(size=(100, k)).tolist()
+
+    tree = KDTree(k=k)
+    tree.build(points, ids)
+
+    for p in points:
+        nearest_id = tree.find_nearest_point(p, return_id=True)
+        p_id = points.index(p)
+        assert nearest_id == p_id

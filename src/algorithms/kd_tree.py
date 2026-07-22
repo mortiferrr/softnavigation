@@ -38,7 +38,8 @@ class KDNode:
         self.node_id = node_id
 
 
-# TODO: Add to rebalance of kd-tree
+# TODO (mortiferr): Add to rebalance of kd-tree
+# TODO (mortiferrr): Rewrite to C++
 class KDTree:
     """
     A kd-tree for fast spatial search.

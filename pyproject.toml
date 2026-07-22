@@ -1,6 +1,6 @@
 [project]
 name = "softnavigate"
-version = "0.2.0"
+version = "0.2.2"
 description = "Implementation of Various Path-Finding Algorithms for Flexible Robots 🤖"
 requires-python = ">=3.12"
 authors = [

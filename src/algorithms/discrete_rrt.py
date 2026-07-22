@@ -10,22 +10,36 @@ class Node:
     """The node of RRT"""
 
     def __init__(
-        self, point: np.ndarray | tuple[float, ...], path_to_node: list[tuple[int, ...]]
+        self, point: tuple[int, ...], move: tuple[int, ...] | None = None , parent: Node | None = None
     ) -> None:
         """
         Args:
-            point (np.ndarray | tuple[float, ...]): Node coordinates in space
-            path_to_node (list[tuple[int, ...]]): The path to this node,
-                starting from the start position
+            point (tuple[int, ...]): Node coordinates in space.
+            parent (Node | None): Parent node for this node.
+            move (tuple[int, ...] | None): The move that led from the parent node to this one.
         """
-        self.point = np.asarray(point, dtype=np.float64)
-        # FIXME (mortiferrr): High memory usage
-        self.path_to_node = path_to_node
+        self.point = point
+        self.parent = parent
+        self.move = move
+
+    def restore_path(self) -> list[tuple[int, ...]]:
+        """Restores the path from the root node to the current node"""
+        if not self.move:
+            raise ValueError("Path to root node cannot be restores")
+
+        moves = [self.move]
+        curr_node = self.parent
+        while curr_node and curr_node.move:
+            moves.append(curr_node.move)
+            curr_node = curr_node.parent
+
+        return moves
 
 
 # TODO (mortiferrr): Add support for diagonal movements
 # TODO (mortiferrr): Add the option to specify the step size
 # TODO (mortiferrr): Add POMDP support
+# TODO (mortiferrr): Rewrite to C++
 class DiscreteRRTAgent:
     """
     Class of agent that operate according to
@@ -43,91 +57,83 @@ class DiscreteRRTAgent:
             k (int): Dimensionality of space
             random_state (int | None): Random number generator seed
         """
-        self._nodes: dict[tuple[float, ...], Node] = {}
+        self._nodes: list[Node] = []
         self._k = k
         self._kd_tree = KDTree(k=k)
         self._rng = np.random.default_rng(random_state)
 
-    # FIXME (mortiferrr): Too many allocations associated with the conversion to a tuple
-    # mortifer (from Latin) - the bringer of death to RAM. It is my Alter Ego
     def _create_new_node(
-        self, obstacles: np.ndarray, random_point: np.ndarray, nearest_node: Node
+        self, obstacles: np.ndarray, random_point: tuple[int, ...], nearest_node: Node
     ) -> Node:
         # TODO (mortiferrr): This solution allows movement only along the axes,
         # because `np.argmax` finds and returns only the first max element
-        diff = random_point - nearest_node.point
+        diff = np.array(random_point, dtype=np.int32) - nearest_node.point
         max_axis = np.argmax(np.abs(diff))
         move = np.zeros_like(nearest_node.point)
         move[max_axis] = np.sign(diff[max_axis])
 
         try:
             new_point = nearest_node.point + move
-            if obstacles[tuple(new_point.astype(np.int32))] == 1:
+            new_point = tuple(new_point.tolist())
+            if obstacles[new_point] == 1:
                 raise ObstacleCollisionError
 
         except IndexError as e:
             raise e
 
-        path_to_new_node = nearest_node.path_to_node.copy()
-        path_to_new_node.append(tuple(move.astype(np.int32)))
-
-        new_node = Node(point=new_point, path_to_node=path_to_new_node)
+        new_node = Node(point=new_point, move=tuple(move.tolist()), parent=nearest_node)
         return new_node
 
-    # FIXME (mortiferrr): Too many allocations associated with the conversion to a tuple
-    # mortifer (from Latin) - the bringer of death to RAM. It is my Alter Ego
     def _build(
         self,
         obstacles: np.ndarray,
-        current: np.ndarray,
-        target: np.ndarray,
+        target: tuple[int, ...],
         max_steps: int,
-    ):
+    ) -> Node:
         assert self._nodes, (
             "The root node must be initialized in `self._nodes` before building"
         )
-        assert tuple(current) in self._nodes, (
-            "The root node must be initialized in `self._nodes` before building"
+        assert len(self._nodes), (
+            "The 'self._nodes' should contain only the root node"
         )
 
-        curr_node = self._nodes[tuple(current)]
+        new_node = self._nodes[0]
         curr_step = 0
 
-        while not np.allclose(curr_node.point, target) and curr_step < max_steps:
+        while not np.allclose(new_node.point, target) and curr_step < max_steps:
             curr_step += 1
-            # This is necessary to avoid unnecessary memory allocation
-            random_point = self._rng.uniform(0, obstacles.shape)
-            np.floor(random_point, out=random_point)
+            random_point = self._rng.integers(low=obstacles.shape)
+            random_point = tuple(random_point.tolist())
             # Keep selecting a random point until one is chosen
             # that isn't already in the dictionary
-            if tuple(random_point) in self._nodes:
+            if random_point in self._kd_tree.points:
                 continue
 
-            nearest_point = self._kd_tree.find_nearest_point(random_point)
-            nearest_node = self._nodes[tuple(nearest_point)]
+            nearest_id = self._kd_tree.find_nearest_point(random_point, return_id=True)
+            nearest_node = self._nodes[nearest_id]  # type: ignore
 
             try:
                 new_node = self._create_new_node(obstacles, random_point, nearest_node)
             except (ObstacleCollisionError, IndexError):
                 continue
 
-            self._nodes[tuple(new_node.point)] = new_node
-            self._kd_tree.insert(new_node.point)
-
-            curr_node = new_node
+            self._nodes.append(new_node)
+            self._kd_tree.insert(new_node.point, len(self._nodes) - 1)
 
         # This might work if the loop exit condition
         # was based on a limit on the number of iterations
-        if not np.allclose(curr_node.point, target) and len(self._nodes):
+        if not np.allclose(new_node.point, target) and len(self._nodes):
             raise TargetNotReachedError("The target was not reached")
+
+        return new_node
 
     def act(
         self,
         obstacles: np.ndarray,
-        target: np.ndarray,
-        current: np.ndarray,
+        target: tuple[int, ...],
+        current: tuple[int, ...],
         max_steps: int = 1000,
-    ) -> list:
+    ) -> list[tuple[int, ...]]:
         """
         Generates a sequence of actions for the agent
         Args:
@@ -147,13 +153,13 @@ class DiscreteRRTAgent:
         if max_steps < 1:
             raise ValueError("The `max_steps` parameter must be greater than zero")
 
-        root = Node(point=current, path_to_node=[])
-        self._nodes[tuple(current)] = root
-        self._kd_tree.insert(root.point)
+        root = Node(point=current)
+        self._nodes.append(root)
+        self._kd_tree.insert(root.point, 0)
 
-        self._build(obstacles, current, target, max_steps)
+        target_node = self._build(obstacles, target, max_steps)
         assert self._nodes, (
             "After the tree is built, the `self._nodes` must be not empty"
         )
 
-        return self._nodes[tuple(target)].path_to_node
+        return target_node.restore_path()

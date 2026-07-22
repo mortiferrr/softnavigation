@@ -46,6 +46,7 @@ class KDTree:
     Attributes:
         root (KDNode | None): The root node of the tree.
         k (int): The number of dimensions.
+        dist ("manhattan" | "euclidean"]): Function for calculating distance to target.
     """
 
     def __init__(
@@ -56,6 +57,7 @@ class KDTree:
         """Initializes a KDTree."""
         self.root = None
         self.k = k
+        self.points: set[tuple[int | float, ...]] = set()
         self._dist = distance_sq if dist == "euclidean" else manhattan
 
     def build(
@@ -80,9 +82,11 @@ class KDTree:
         axis = depth % self.k
         median_index = len(indices) // 2
 
+        # NOTE: O(N) instead of O(N*log(N))
         partitioned = np.argpartition(points[indices, axis], median_index)
         sorted_indices = indices[partitioned]
 
+        # NOTE: Median point - dividing line
         median_point = points[sorted_indices[median_index]]
         median_point = tuple(median_point.tolist())
         node_id = sorted_indices[median_index] if ids else None
@@ -93,6 +97,7 @@ class KDTree:
         left_child = self._build(points, left_indices, depth + 1, ids)
         right_child = self._build(points, right_indices, depth + 1, ids)
 
+        self.points.add(median_point)
         return KDNode(median_point, axis, left_child, right_child, node_id)
 
     def insert(
@@ -100,6 +105,7 @@ class KDTree:
     ) -> None:
         """Inserts a new point into the KDTree."""
         self.root = self._insert(self.root, point, 0, node_id)
+        self.points.add(point)
 
     def _insert(
         self,

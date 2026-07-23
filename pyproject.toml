@@ -1,7 +1,7 @@
 [project]
 name = "softnavigate"
-version = "0.2.2"
-description = "Implementation of Various Path-Finding Algorithms for Flexible Robots 🤖"
+version = "0.2.3"
+description = "Implementation RRT Path-Finding Algorithms 🤖"
 requires-python = ">=3.12"
 authors = [
     { name = "Artemy Polyakov", email = "artempolyakov159@gmail.com" },

@@ -61,6 +61,11 @@ class KDTree:
         self.points: set[tuple[int | float, ...]] = set()
         self._dist = distance_sq if dist == "euclidean" else manhattan
 
+    def clear(self) -> None:
+        """Clears tree nodes"""
+        self.root = None
+        self.points.clear()
+
     def build(
         self, points: list[tuple[int | float, ...]], ids: list[int] | None = None
     ) -> None:

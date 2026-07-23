@@ -18,6 +18,14 @@ def test_build_single_point():
     assert tree.root.right is None
 
 
+def test_clear_tree():
+    tree = KDTree(k=2)
+    tree.build([(3, 1), (2, 3), (2, 6), (4, 2)])
+    tree.clear()
+    assert tree.root is None
+    assert len(tree.points) == 0
+
+
 def test_build_2d_structure():
     tree = KDTree(k=2)
     tree.build([(3, 1), (2, 3), (2, 6), (4, 2)])

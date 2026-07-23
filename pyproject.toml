@@ -1,6 +1,6 @@
 [project]
 name = "softnavigate"
-version = "0.2.3"
+version = "0.2.4"
 description = "Implementation RRT Path-Finding Algorithms 🤖"
 requires-python = ">=3.12"
 authors = [

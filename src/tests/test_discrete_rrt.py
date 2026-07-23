@@ -5,11 +5,14 @@ from src.algorithms.discrete_rrt import DiscreteRRTAgent
 from src.exceptions import TargetNotReachedError
 
 
-def follow_path(act, start) -> list[int]:
+def follow_path(agent, start, target, obstacles_arr) -> list[int]:
     curr_coords = list(start)
-    for move in act:
+    move = agent.act(obstacles_arr, target, start)
+    while move:
         for i in range(len(curr_coords)):
             curr_coords[i] += move[i]
+        move = agent.act(obstacles_arr, target, start)
+
     return curr_coords
 
 
@@ -56,13 +59,11 @@ def follow_path(act, start) -> list[int]:
         ),
     ],
 )
-def test_search_target_2d(obstacles, start, target, k):
+def test_search_target(obstacles, start, target, k):
     obstacles_arr = np.array(obstacles, dtype=np.int32)
 
     agent = DiscreteRRTAgent(k=k, random_state=67)
-    act = agent.act(obstacles_arr, target, start)
-
-    act_coords = follow_path(act, start)
+    act_coords = follow_path(agent, start, target, obstacles_arr)
 
     assert act_coords == list(target)
 

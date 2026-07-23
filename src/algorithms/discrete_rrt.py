@@ -9,8 +9,13 @@ from src.exceptions import ObstacleCollisionError, TargetNotReachedError
 class Node:
     """The node of RRT"""
 
+    __slots__ = ("point", "parent", "move")
+
     def __init__(
-        self, point: tuple[int, ...], move: tuple[int, ...] | None = None , parent: Node | None = None
+        self,
+        point: tuple[int, ...],
+        move: tuple[int, ...] | None = None,
+        parent: Node | None = None,
     ) -> None:
         """
         Args:
@@ -61,6 +66,11 @@ class DiscreteRRTAgent:
         self._k = k
         self._kd_tree = KDTree(k=k)
         self._rng = np.random.default_rng(random_state)
+        # This is true if the new observation passed to the act() method
+        # does not require a path change
+        # NOTE: This will come in handy for future POMDPs
+        self._is_actual = False
+        self._actual_path_to_target: list[tuple[int, ...]] = []
 
     def _create_new_node(
         self, obstacles: np.ndarray, random_point: tuple[int, ...], nearest_node: Node
@@ -93,9 +103,7 @@ class DiscreteRRTAgent:
         assert self._nodes, (
             "The root node must be initialized in `self._nodes` before building"
         )
-        assert len(self._nodes), (
-            "The 'self._nodes' should contain only the root node"
-        )
+        assert len(self._nodes), "The 'self._nodes' should contain only the root node"
 
         new_node = self._nodes[0]
         curr_step = 0
@@ -133,7 +141,7 @@ class DiscreteRRTAgent:
         target: tuple[int, ...],
         current: tuple[int, ...],
         max_steps: int = 1000,
-    ) -> list[tuple[int, ...]]:
+    ) -> tuple[int, ...] | None:
         """
         Generates a sequence of actions for the agent
         Args:
@@ -153,13 +161,20 @@ class DiscreteRRTAgent:
         if max_steps < 1:
             raise ValueError("The `max_steps` parameter must be greater than zero")
 
-        root = Node(point=current)
-        self._nodes.append(root)
-        self._kd_tree.insert(root.point, 0)
+        # NOTE: A path validation check for GridMemory will be added here later;
+        # this is required for POMDP and agent mode (returns a single action rather than a list).
+        if not self._is_actual:
+            self._kd_tree.clear()
+            root = Node(point=current)
+            self._nodes.append(root)
+            self._kd_tree.insert(root.point, 0)
 
-        target_node = self._build(obstacles, target, max_steps)
-        assert self._nodes, (
-            "After the tree is built, the `self._nodes` must be not empty"
-        )
+            target_node = self._build(obstacles, target, max_steps)
+            assert self._nodes, (
+                "After the tree is built, the `self._nodes` must be not empty"
+            )
+            self._actual_path_to_target = target_node.restore_path()
+            self._is_actual = True
 
-        return target_node.restore_path()
+        move = self._actual_path_to_target.pop(0) if len(self._actual_path_to_target) != 0 else None
+        return move
